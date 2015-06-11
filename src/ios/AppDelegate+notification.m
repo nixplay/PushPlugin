@@ -88,6 +88,7 @@ static char launchNotificationKey;
     
     //zero badge
     application.applicationIconBadgeNumber = 0;
+    [application cancelAllLocalNotifications];
 
     if (self.launchNotification) {
         PushPlugin *pushHandler = [self getCommandInstance:@"PushPlugin"];
