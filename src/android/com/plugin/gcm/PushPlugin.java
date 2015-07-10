@@ -5,10 +5,7 @@ import android.content.Context;
 import android.os.Bundle;
 import android.util.Log;
 import com.google.android.gcm.GCMRegistrar;
-import org.apache.cordova.CallbackContext;
-import org.apache.cordova.CordovaInterface;
-import org.apache.cordova.CordovaPlugin;
-import org.apache.cordova.CordovaWebView;
+import org.apache.cordova.*;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -24,13 +21,14 @@ public class PushPlugin extends CordovaPlugin {
 
 	public static final String REGISTER = "register";
 	public static final String UNREGISTER = "unregister";
+	public static final String ARE_NOTIFICATIONS_ENABLED = "areNotificationsEnabled";
 	public static final String EXIT = "exit";
 
 	private static CordovaWebView gWebView;
 	private static String gECB;
-	private static String gSenderID;
 	private static Bundle gCachedExtras = null;
-    private static boolean gForeground = false;
+	private static boolean gForeground = false;
+	private static CallbackContext rememberedAsyncCallback;
 
 	/**
 	 * Gets the application context from cordova's main activity.
@@ -43,7 +41,7 @@ public class PushPlugin extends CordovaPlugin {
 	@Override
 	public boolean execute(String action, JSONArray data, CallbackContext callbackContext) {
 
-		boolean result = false;
+		boolean result;
 
 		Log.v(TAG, "execute: action=" + action);
 
@@ -58,13 +56,18 @@ public class PushPlugin extends CordovaPlugin {
 				Log.v(TAG, "execute: jo=" + jo.toString());
 
 				gECB = (String) jo.get("ecb");
-				gSenderID = (String) jo.get("senderID");
+				String gSenderID = (String) jo.get("senderID");
 
 				Log.v(TAG, "execute: ECB=" + gECB + " senderID=" + gSenderID);
 
+				// remember this callback instance because we need it when GCMRegistrar.register returns
+				rememberedAsyncCallback = callbackContext;
+
 				GCMRegistrar.register(getApplicationContext(), gSenderID);
 				result = true;
-				callbackContext.success();
+				PluginResult pluginResult = new PluginResult(PluginResult.Status.NO_RESULT);
+				pluginResult.setKeepCallback(true);
+				callbackContext.sendPluginResult(pluginResult);
 			} catch (JSONException e) {
 				Log.e(TAG, "execute: Got JSON Exception " + e.getMessage());
 				result = false;
@@ -76,6 +79,14 @@ public class PushPlugin extends CordovaPlugin {
 				sendExtras(gCachedExtras);
 				gCachedExtras = null;
 			}
+
+		} else if (ARE_NOTIFICATIONS_ENABLED.equals(action)) {
+
+			Log.v(TAG, "ARE_NOTIFICATIONS_ENABLED");
+			final boolean registered = GCMRegistrar.isRegistered(getApplicationContext());
+			Log.d(TAG, "areNotificationsEnabled? " + registered);
+			callbackContext.sendPluginResult(new PluginResult(PluginResult.Status.OK, registered));
+			result = true;
 
 		} else if (UNREGISTER.equals(action)) {
 
@@ -91,6 +102,14 @@ public class PushPlugin extends CordovaPlugin {
 		}
 
 		return result;
+	}
+
+	public static void sendAsyncRegistrationResult(boolean ok, String msg) {
+		if (rememberedAsyncCallback != null) {
+			PluginResult result = new PluginResult(ok ? PluginResult.Status.OK : PluginResult.Status.ERROR, msg);
+			rememberedAsyncCallback.sendPluginResult(result);
+			rememberedAsyncCallback = null;
+		}
 	}
 
 	/*
@@ -121,39 +140,39 @@ public class PushPlugin extends CordovaPlugin {
 		}
 	}
 
-    @Override
-    public void initialize(CordovaInterface cordova, CordovaWebView webView) {
-        super.initialize(cordova, webView);
-        gForeground = true;
-    }
+	@Override
+	public void initialize(CordovaInterface cordova, CordovaWebView webView) {
+		super.initialize(cordova, webView);
+		gForeground = true;
+	}
 
 	@Override
-    public void onPause(boolean multitasking) {
-        super.onPause(multitasking);
-        gForeground = false;
-        final NotificationManager notificationManager = (NotificationManager) cordova.getActivity().getSystemService(Context.NOTIFICATION_SERVICE);
-        notificationManager.cancelAll();
-    }
+	public void onPause(boolean multitasking) {
+		super.onPause(multitasking);
+		gForeground = false;
+		final NotificationManager notificationManager = (NotificationManager) cordova.getActivity().getSystemService(Context.NOTIFICATION_SERVICE);
+		notificationManager.cancelAll();
+	}
 
-    @Override
-    public void onResume(boolean multitasking) {
-        super.onResume(multitasking);
-        gForeground = true;
-    }
+	@Override
+	public void onResume(boolean multitasking) {
+		super.onResume(multitasking);
+		gForeground = true;
+	}
 
-    @Override
-    public void onDestroy() {
-        super.onDestroy();
-        gForeground = false;
+	@Override
+	public void onDestroy() {
+		super.onDestroy();
+		gForeground = false;
 		gECB = null;
 		gWebView = null;
-    }
+	}
 
-    /*
-     * serializes a bundle to JSON.
-     */
-    private static JSONObject convertBundleToJson(Bundle extras)
-    {
+	/*
+   * serializes a bundle to JSON.
+   */
+	private static JSONObject convertBundleToJson(Bundle extras)
+	{
 		try
 		{
 			JSONObject json;
@@ -188,7 +207,7 @@ public class PushPlugin extends CordovaPlugin {
 					}
 
 					if ( value instanceof String ) {
-					// Try to figure out if the value is another JSON object
+						// Try to figure out if the value is another JSON object
 
 						String strValue = (String)value;
 						if (strValue.startsWith("{")) {
@@ -231,15 +250,15 @@ public class PushPlugin extends CordovaPlugin {
 			Log.e(TAG, "extrasToJSON: JSON exception");
 		}
 		return null;
-    }
+	}
 
-    public static boolean isInForeground()
-    {
-      return gForeground;
-    }
+	public static boolean isInForeground()
+	{
+		return gForeground;
+	}
 
-    public static boolean isActive()
-    {
-    	return gWebView != null;
-    }
+	public static boolean isActive()
+	{
+		return gWebView != null;
+	}
 }
