@@ -62,6 +62,14 @@ static char launchNotificationKey;
     [pushHandler didFailToRegisterForRemoteNotificationsWithError:error];
 }
 
+- (void)application:(UIApplication *)application didReceiveRemoteNotification:(NSDictionary *)userInfo fetchCompletionHandler:(void (^)(UIBackgroundFetchResult))completionHandle {
+    NSLog(@"Remote Notification Recieved");
+    PushPlugin *pushHandler = [self getCommandInstance:@"PushPlugin"];
+    pushHandler.notificationMessage = userInfo;
+    pushHandler.isInline = YES;
+    [pushHandler notificationReceived];
+}
+
 - (void)application:(UIApplication *)application didReceiveRemoteNotification:(NSDictionary *)userInfo {
     NSLog(@"didReceiveNotification");
     
