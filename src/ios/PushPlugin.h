@@ -33,11 +33,13 @@
     BOOL    isInline;
     NSString *notificationCallbackId;
     NSString *callback;
+    NSString *badgeCallbackId;
     
     BOOL ready;
 }
 
 @property (nonatomic, copy) NSString *callbackId;
+@property (nonatomic, copy) NSString *badgeCallbackId;
 @property (nonatomic, copy) NSString *notificationCallbackId;
 @property (nonatomic, copy) NSString *callback;
 
